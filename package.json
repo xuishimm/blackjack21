@@ -1,0 +1,24 @@
+{
+  "name": "blackjack21",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/xuishimm/blackjack21.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/xuishimm/blackjack21/issues"
+  },
+  "homepage": "https://github.com/xuishimm/blackjack21#readme",
+  "devDependencies": {
+    "wrangler": "^4.105.0"
+  }
+}
