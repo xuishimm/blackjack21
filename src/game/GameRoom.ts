@@ -62,7 +62,6 @@ export class GameRoom implements DurableObject {
     server.serializeAttachment({ userId, username });
 
     this.joinPlayer(userId, username);
-    // Send initial yourId message directly
     try { server.send(JSON.stringify({ type: 'yourId', userId })); } catch {}
     this.broadcast();
     this.persist();
@@ -116,7 +115,7 @@ export class GameRoom implements DurableObject {
         bless: false, shield: false, lastTrump: null,
         result: null, wins: 0, connected: true,
       });
-      this.addLog(`${username} joined the room`);
+      this.addLog(`${username} joined`);
     }
   }
 
@@ -175,6 +174,7 @@ export class GameRoom implements DurableObject {
       this.room.dealer = null;
     }
 
+    // Deal 2 cards each; dealer's second card is face-down
     for (let r = 0; r < 2; r++) {
       for (const p of this.room.players) p.hand.push(this.draw());
       if (this.room.dealer) {
@@ -184,15 +184,23 @@ export class GameRoom implements DurableObject {
       }
     }
 
-    this.addLog(`Round ${this.room.round} started!`);
+    this.addLog(`Round ${this.room.round} started`);
     this.checkBlackjacks();
-    this.broadcast();
+
+    // If the first player was auto-stood by blackjack, advance immediately
+    const first = this.room.players[this.room.curIdx];
+    if (first?.stood || first?.busted) {
+      this.broadcast();
+      this.advance();
+    } else {
+      this.broadcast();
+    }
   }
 
   private checkBlackjacks(): void {
     if (!this.room) return;
     for (const p of this.room.players) {
-      if (!p.stood && !p.busted && calcScore(p.hand, this.room.target) === 21 && p.hand.length === 2) {
+      if (!p.stood && !p.busted && p.hand.length === 2 && calcScore(p.hand, this.room.target) === this.room.target) {
         p.stood = true;
         this.addLog(`${p.username} has Blackjack! 🃏`);
       }
@@ -208,7 +216,7 @@ export class GameRoom implements DurableObject {
   private handleHit(userId: number): void {
     if (!this.room || this.room.phase !== 'playing') return;
     const p = this.cur();
-    if (!p || p.userId !== userId) return;
+    if (!p || p.userId !== userId || p.stood || p.busted) return;
 
     const c = this.draw();
     p.hand.push(c);
@@ -230,7 +238,7 @@ export class GameRoom implements DurableObject {
   private handleStand(userId: number): void {
     if (!this.room || this.room.phase !== 'playing') return;
     const p = this.cur();
-    if (!p || p.userId !== userId) return;
+    if (!p || p.userId !== userId || p.stood || p.busted) return;
     this.addLog(`${p.username} stands at ${calcScore(p.hand, this.room.target)}`);
     p.stood = true;
     this.broadcast();
@@ -241,7 +249,7 @@ export class GameRoom implements DurableObject {
     if (!this.room) return;
     if (p.bless) {
       p.bless = false;
-      this.addLog(`${p.username} busted but Bless saves them! 🙏`);
+      this.addLog(`${p.username} busted — Bless saves them! 🙏`);
       this.broadcast();
       return;
     }
@@ -265,9 +273,10 @@ export class GameRoom implements DurableObject {
 
     this.room.curIdx = next;
     const np = this.room.players[next];
-    if (!np.stood && calcScore(np.hand, this.room.target) === 21) {
+    // Auto-stand on exact target
+    if (!np.stood && calcScore(np.hand, this.room.target) === this.room.target) {
       np.stood = true;
-      this.addLog(`${np.username} has Blackjack! 🃏`);
+      this.addLog(`${np.username} has ${this.room.target} exactly! 🃏`);
       this.broadcast();
       this.advance();
       return;
@@ -280,7 +289,7 @@ export class GameRoom implements DurableObject {
   private handlePlayTrump(userId: number, trumpId: string, targetUserId?: number): void {
     if (!this.room || this.room.phase !== 'playing') return;
     const p = this.cur();
-    if (!p || p.userId !== userId) return;
+    if (!p || p.userId !== userId || p.stood || p.busted) return;
 
     const tIdx = p.trumps.findIndex(t => t.id === trumpId);
     if (tIdx === -1) return;
@@ -317,18 +326,27 @@ export class GameRoom implements DurableObject {
       case '5card': case '6card': case '7card': {
         const n = parseInt(trump.id);
         player.hand.push({ suit: randomSuit(), value: String(n), hidden: false });
-        const sc = calcScore(player.hand, this.room!.target);
-        if (sc > this.room!.target) { this.bust(player); return; }
+        const sc = calcScore(player.hand, this.room.target);
+        if (sc > this.room.target) { this.bust(player); return; }
+        if (sc === this.room.target) {
+          this.addLog(`${player.username} hits exactly ${this.room.target}! ✨`);
+          player.stood = true;
+          this.broadcast();
+          this.advance();
+          return;
+        }
         break;
       }
 
       case 'goFor17': case 'goFor24': case 'goFor27': {
-        const prev = this.room!.target;
-        this.room!.target = parseInt(trump.id.replace('goFor', ''));
-        this.addLog(`Target changed ${prev} → ${this.room!.target} 🎯`);
-        for (const p of this.room!.players) {
-          if (!p.busted && !p.stood && calcScore(p.hand, this.room!.target) > this.room!.target)
+        const prev = this.room.target;
+        this.room.target = parseInt(trump.id.replace('goFor', ''));
+        this.addLog(`Target changed: ${prev} → ${this.room.target} 🎯`);
+        // Check all active players against new target
+        for (const p of this.room.players) {
+          if (!p.busted && !p.stood && calcScore(p.hand, this.room.target) > this.room.target) {
             this.bust(p);
+          }
         }
         this.broadcast();
         return;
@@ -340,12 +358,22 @@ export class GameRoom implements DurableObject {
         break;
 
       case 'perfect': {
-        while (calcScore(player.hand, this.room!.target) > this.room!.target && player.hand.length > 2)
+        const tgt = this.room.target;
+        let cur = calcScore(player.hand, tgt);
+        // Remove most recently drawn cards until at/below target
+        while (cur > tgt && player.hand.length > 2) {
           player.hand.pop();
-        const cur = calcScore(player.hand, this.room!.target);
-        const gap = this.room!.target - cur;
-        if (gap > 0 && gap <= 11) player.hand.push(magicCard(gap));
-        this.addLog(`${player.username}'s score set to ${this.room!.target} ✨`);
+          cur = calcScore(player.hand, tgt);
+        }
+        if (cur > tgt) {
+          // Edge case: only 2 cards and still over (e.g. A+K on target 17)
+          this.bust(player);
+          return;
+        }
+        if (cur < tgt) {
+          player.hand.push(magicCard(tgt - cur));
+        }
+        this.addLog(`${player.username} reaches exactly ${tgt}! ✨`);
         player.stood = true;
         this.broadcast();
         this.advance();
@@ -355,10 +383,10 @@ export class GameRoom implements DurableObject {
       case 'remove':
         if (target && target.hand.length) {
           const rem = target.hand.pop()!;
-          this.addLog(`Removed ${target.username}'s last card (${rem.hidden ? '?' : rem.value + rem.suit})`);
-          if (target.busted && calcScore(target.hand, this.room!.target) <= this.room!.target) {
+          this.addLog(`Removed ${target.username}'s ${rem.hidden ? '?' : rem.value + rem.suit}`);
+          if (target.busted && calcScore(target.hand, this.room.target) <= this.room.target) {
             target.busted = false;
-            this.addLog(`${target.username} is no longer busted!`);
+            this.addLog(`${target.username} is back in the game!`);
           }
         }
         break;
@@ -370,11 +398,11 @@ export class GameRoom implements DurableObject {
           player.hand.push(theirs);
           target.hand.push(mine);
           this.addLog(`${player.username} swapped cards with ${target.username} 🔄`);
-          if (calcScore(player.hand, this.room!.target) > this.room!.target && !player.busted) {
+          if (calcScore(player.hand, this.room.target) > this.room.target && !player.busted) {
             this.bust(player); return;
           }
-          if (target.userId !== 0 && calcScore(target.hand, this.room!.target) > this.room!.target && !target.busted) {
-            const tp = this.room!.players.find(p => p.userId === target!.userId);
+          if (target.userId !== 0 && calcScore(target.hand, this.room.target) > this.room.target && !target.busted) {
+            const tp = this.room.players.find(p => p.userId === target!.userId);
             if (tp) { this.bust(tp); return; }
           }
         }
@@ -385,8 +413,8 @@ export class GameRoom implements DurableObject {
           const c = this.draw();
           target.hand.push(c);
           this.addLog(`${target.username} forced to draw ${c.value}${c.suit}! 😈`);
-          if (target.userId !== 0 && calcScore(target.hand, this.room!.target) > this.room!.target && !target.busted) {
-            const tp = this.room!.players.find(p => p.userId === target!.userId);
+          if (target.userId !== 0 && calcScore(target.hand, this.room.target) > this.room.target && !target.busted) {
+            const tp = this.room.players.find(p => p.userId === target!.userId);
             if (tp) { this.bust(tp); return; }
           }
         }
@@ -397,18 +425,18 @@ export class GameRoom implements DurableObject {
           this.addLog(`${player.username} destroys ${target.username}'s ${target.lastTrump.name}! 💥`);
           target.lastTrump = null;
         } else {
-          this.addLog('No trump to destroy!');
+          this.addLog(`Nothing to destroy on ${target?.username ?? '?'}`);
         }
         break;
 
       case 'bless':
         player.bless = true;
-        this.addLog(`${player.username} is blessed — survives one bust! 🙏`);
+        this.addLog(`${player.username} is Blessed — survives one bust 🙏`);
         break;
 
       case 'shield':
         player.shield = true;
-        this.addLog(`${player.username} raises their Shield! 🛡️`);
+        this.addLog(`${player.username} raises their Shield 🛡️`);
         break;
     }
 
@@ -422,16 +450,19 @@ export class GameRoom implements DurableObject {
     this.room.phase  = 'dealerTurn';
     this.room.curIdx = -1;
     for (const c of this.room.dealer.hand) c.hidden = false;
-    this.addLog(`Dealer reveals: ${calcScore(this.room.dealer.hand, this.room.target)}`);
+
+    const dealerScore = calcScore(this.room.dealer.hand, this.room.target);
+    this.addLog(`Dealer reveals — ${dealerScore}`);
 
     if (this.room.players.every(p => p.busted)) {
       this.addLog('All players busted — dealer wins');
+      this.room.dealer.stood = true;
       this.resolveRound();
       return;
     }
 
     this.broadcast();
-    this.ctx.storage.setAlarm(Date.now() + 800);
+    this.ctx.storage.setAlarm(Date.now() + 900);
   }
 
   private dealerStep(): void {
@@ -448,7 +479,7 @@ export class GameRoom implements DurableObject {
         this.resolveRound();
       } else {
         this.broadcast();
-        this.ctx.storage.setAlarm(Date.now() + 800);
+        this.ctx.storage.setAlarm(Date.now() + 900);
       }
     } else {
       this.addLog(`Dealer stands at ${sc}`);
@@ -464,32 +495,39 @@ export class GameRoom implements DurableObject {
     this.room.phase = 'roundOver';
 
     if (this.room.mode === 'vsDealer') {
-      const ds = calcScore(this.room.dealer!.hand, this.room.target);
+      const ds = this.room.dealer!.busted ? -1 : calcScore(this.room.dealer!.hand, this.room.target);
       for (const p of this.room.players) {
         const ps = calcScore(p.hand, this.room.target);
-        if (p.busted)                    p.result = 'lose';
-        else if (this.room.dealer!.busted || ps > ds) { p.result = 'win'; p.wins++; }
-        else if (ps === ds)              p.result = 'draw';
-        else                             p.result = 'lose';
-        this.addLog(`${p.username}: ${this.rl(p.result)} (${ps})`);
+        if (p.busted || ps > this.room.target) {
+          p.result = 'lose';
+        } else if (ds < 0 || ps > ds) {
+          p.result = 'win'; p.wins++;
+        } else if (ps === ds) {
+          p.result = 'draw';
+        } else {
+          p.result = 'lose';
+        }
+        this.addLog(`${p.username}: ${this.rl(p.result)} (${ps} vs ${ds < 0 ? 'bust' : ds})`);
       }
     } else {
-      const active = this.room.players.filter(p => !p.busted);
+      const room   = this.room;
+      const active = room.players.filter(p => !p.busted && calcScore(p.hand, room.target) <= room.target);
       if (!active.length) {
-        this.room.players.forEach(p => { p.result = 'lose'; });
+        room.players.forEach(p => { p.result = 'lose'; });
         this.addLog('Everyone busted!');
       } else {
-        const best    = Math.max(...active.map(p => calcScore(p.hand, this.room!.target)));
-        const winners = active.filter(p => calcScore(p.hand, this.room!.target) === best);
+        const best    = Math.max(...active.map(p => calcScore(p.hand, room.target)));
+        const winners = active.filter(p => calcScore(p.hand, room.target) === best);
         for (const p of this.room.players) {
-          if (p.busted) { p.result = 'lose'; }
-          else if (winners.includes(p)) {
+          if (p.busted || calcScore(p.hand, this.room.target) > this.room.target) {
+            p.result = 'lose';
+          } else if (winners.includes(p)) {
             p.result = winners.length === 1 ? 'win' : 'draw';
             if (winners.length === 1) p.wins++;
           } else {
             p.result = 'lose';
           }
-          this.addLog(`${p.username}: ${this.rl(p.result)} (${calcScore(p.hand, this.room!.target)})`);
+          this.addLog(`${p.username}: ${this.rl(p.result)} (${calcScore(p.hand, this.room.target)})`);
         }
       }
     }
@@ -519,7 +557,7 @@ export class GameRoom implements DurableObject {
   private addLog(msg: string): void {
     if (!this.room) return;
     this.room.log.unshift(msg);
-    if (this.room.log.length > 50) this.room.log.length = 50;
+    if (this.room.log.length > 60) this.room.log.length = 60;
   }
 
   private broadcast(): void {
@@ -537,5 +575,4 @@ export class GameRoom implements DurableObject {
   }
 }
 
-// Local type alias to satisfy TypeScript inside the switch
 type GameMode = 'vsDealer' | 'vsPlayers';
