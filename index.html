@@ -1,0 +1,1181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>21 — Trump Card Blackjack</title>
+  <style>
+    :root {
+      --bg: #0b1120;
+      --surface: #111827;
+      --surface2: #1a2540;
+      --border: #1e3a5a;
+      --accent: #f59e0b;
+      --accent2: #fbbf24;
+      --green: #22c55e;
+      --red: #ef4444;
+      --blue: #60a5fa;
+      --purple: #a855f7;
+      --text: #f1f5f9;
+      --muted: #64748b;
+      --muted2: #94a3b8;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    /* ──────────── SETUP ──────────── */
+    #setup-screen {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem 1rem;
+    }
+    .title { font-size: 3.5rem; font-weight: 900; color: var(--accent); letter-spacing: -1px; }
+    .subtitle { color: var(--muted2); font-size: 1rem; margin-bottom: 2rem; }
+    .setup-box {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 1rem;
+      padding: 2rem;
+      width: 100%;
+      max-width: 480px;
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+    }
+    .field-label {
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      color: var(--muted2);
+      margin-bottom: .4rem;
+    }
+    .mode-row { display: flex; gap: .5rem; }
+    .mode-btn {
+      flex: 1;
+      padding: .65rem;
+      background: transparent;
+      border: 2px solid var(--border);
+      color: var(--muted2);
+      border-radius: .5rem;
+      cursor: pointer;
+      font-size: .85rem;
+      font-weight: 600;
+      transition: all .15s;
+    }
+    .mode-btn.active {
+      border-color: var(--accent);
+      color: var(--accent);
+      background: rgba(245,158,11,.08);
+    }
+    .count-row { display: flex; align-items: center; gap: .75rem; }
+    .cnt-btn {
+      width: 2rem; height: 2rem;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: .35rem;
+      cursor: pointer;
+      font-size: 1.1rem;
+      line-height: 1;
+    }
+    .cnt-num { font-size: 1.3rem; font-weight: 700; min-width: 1.5rem; text-align: center; }
+    .cnt-hint { font-size: .7rem; color: var(--muted); }
+    .name-inputs { display: flex; flex-direction: column; gap: .4rem; }
+    .name-input {
+      padding: .5rem .75rem;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: .35rem;
+      color: var(--text);
+      font-size: .875rem;
+      width: 100%;
+      transition: border-color .15s;
+    }
+    .name-input:focus { outline: none; border-color: var(--accent); }
+    .deal-btn {
+      padding: .9rem;
+      background: var(--accent);
+      color: #000;
+      border: none;
+      border-radius: .5rem;
+      font-size: 1rem;
+      font-weight: 800;
+      cursor: pointer;
+      letter-spacing: .02em;
+      transition: opacity .15s;
+    }
+    .deal-btn:hover { opacity: .9; }
+    .trump-hint {
+      text-align: center;
+      font-size: .725rem;
+      color: var(--muted);
+      max-width: 480px;
+      margin-top: .5rem;
+      line-height: 1.5;
+    }
+
+    /* ──────────── GAME SHELL ──────────── */
+    #game-screen { display: none; flex-direction: column; min-height: 100vh; }
+
+    .g-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: .6rem 1.25rem;
+      background: #0d1828;
+      border-bottom: 1px solid var(--border);
+      gap: 1rem;
+    }
+    .g-title { font-size: 1.1rem; font-weight: 700; color: var(--accent); }
+    .target-chip {
+      font-size: .8rem;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 9999px;
+      padding: .25rem .75rem;
+    }
+    .target-chip span { color: var(--accent); font-weight: 700; }
+    .menu-btn {
+      padding: .4rem .9rem;
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--muted2);
+      border-radius: .35rem;
+      cursor: pointer;
+      font-size: .8rem;
+    }
+
+    .scores-bar {
+      display: flex;
+      align-items: center;
+      gap: 1.5rem;
+      padding: .4rem 1.25rem;
+      background: var(--bg);
+      border-bottom: 1px solid var(--border);
+      overflow-x: auto;
+    }
+    .round-tag {
+      font-size: .7rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: .05em;
+      margin-right: auto;
+    }
+    .score-pip { display: flex; flex-direction: column; align-items: center; }
+    .score-pip-name { font-size: .6rem; color: var(--muted2); text-transform: uppercase; max-width: 5rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .score-pip-wins { font-size: 1.3rem; font-weight: 800; color: var(--accent); }
+
+    .g-body {
+      flex: 1;
+      display: flex;
+      gap: .75rem;
+      padding: .75rem;
+      overflow: hidden;
+    }
+    .players-col {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: .6rem;
+      overflow-y: auto;
+    }
+    .log-col {
+      width: 200px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: .6rem;
+      padding: .6rem .75rem;
+      overflow-y: auto;
+      max-height: calc(100vh - 170px);
+      flex-shrink: 0;
+    }
+    .log-title { font-size: .6rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin-bottom: .4rem; }
+    .log-line { font-size: .7rem; color: var(--muted2); padding: .2rem 0; border-bottom: 1px solid rgba(255,255,255,.04); line-height: 1.4; }
+    .log-line.hi { color: var(--accent2); }
+
+    /* ──────────── PLAYER PANEL ──────────── */
+    .player-panel {
+      background: #0c2518;
+      border: 2px solid #143d23;
+      border-radius: .75rem;
+      padding: .65rem .9rem;
+      transition: border-color .2s, box-shadow .2s;
+    }
+    .player-panel.is-active {
+      border-color: var(--accent);
+      box-shadow: 0 0 16px rgba(245,158,11,.18);
+    }
+    .player-panel.is-busted { border-color: var(--red); opacity: .75; }
+    .player-panel.is-stood:not(.is-active) { border-color: var(--blue); opacity: .85; }
+    .player-panel.is-winner { border-color: var(--green); box-shadow: 0 0 16px rgba(34,197,94,.22); }
+    .player-panel.dealer-panel { background: #1a0a0e; border-color: #3d1217; }
+    .player-panel.dealer-panel.is-active { border-color: var(--red); }
+
+    .pp-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: .45rem;
+    }
+    .pp-name { font-weight: 700; font-size: .85rem; display: flex; align-items: center; gap: .4rem; }
+    .pp-right { display: flex; align-items: center; gap: .5rem; }
+    .pp-score { font-size: 1.3rem; font-weight: 800; color: var(--accent); }
+    .badge {
+      font-size: .55rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+      padding: .15rem .45rem;
+      border-radius: 9999px;
+    }
+    .badge-turn { background: var(--accent); color: #000; }
+    .badge-stood { background: var(--blue); color: #fff; }
+    .badge-bust { background: var(--red); color: #fff; }
+    .badge-bj { background: var(--green); color: #fff; }
+    .badge-win { background: var(--green); color: #fff; }
+    .badge-lose { background: var(--red); color: #fff; }
+    .badge-draw { background: var(--blue); color: #fff; }
+    .pip-bless { font-size: .55rem; background: var(--purple); color: #fff; border-radius: 9999px; padding: .1rem .4rem; }
+    .pip-shield { font-size: .55rem; background: var(--blue); color: #fff; border-radius: 9999px; padding: .1rem .4rem; }
+
+    /* ──────────── CARDS ──────────── */
+    .cards-row { display: flex; flex-wrap: wrap; gap: .35rem; min-height: 3.8rem; align-items: flex-start; }
+    .card {
+      width: 2.4rem;
+      height: 3.4rem;
+      background: #fff;
+      border-radius: .25rem;
+      border: 1px solid #bbb;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      font-size: .7rem;
+      font-weight: 800;
+      position: relative;
+      box-shadow: 1px 2px 5px rgba(0,0,0,.45);
+      user-select: none;
+      flex-shrink: 0;
+    }
+    .card.c-red { color: #d32f2f; }
+    .card.c-black { color: #111; }
+    .card.c-magic { color: #7c3aed; background: #f5f0ff; border-color: #a78bfa; }
+    .card.c-facedown {
+      background: repeating-linear-gradient(45deg,#162b5e,#162b5e 4px,#1e3a7a 4px,#1e3a7a 8px);
+      border-color: #2d4ea0;
+    }
+    .card-corner { position: absolute; top: 2px; left: 3px; font-size: .5rem; line-height: 1.3; }
+    .card-suit { font-size: .9rem; }
+    .card-val { font-size: .8rem; }
+
+    /* ──────────── TRUMP CARDS ──────────── */
+    .trumps-row { display: flex; flex-wrap: wrap; gap: .35rem; margin-top: .45rem; }
+    .trump-btn {
+      background: linear-gradient(135deg, #2d1b69 0%, #1a0f3e 100%);
+      border: 1px solid #5b3fa0;
+      border-radius: .35rem;
+      color: #c084fc;
+      font-size: .65rem;
+      font-weight: 600;
+      padding: .25rem .55rem;
+      cursor: pointer;
+      transition: all .15s;
+      position: relative;
+    }
+    .trump-btn:hover:not(:disabled) {
+      border-color: #a855f7;
+      color: #e879f9;
+      transform: translateY(-1px);
+    }
+    .trump-btn:disabled { opacity: .38; cursor: not-allowed; }
+    .trump-btn[data-tip]:hover::after {
+      content: attr(data-tip);
+      position: absolute;
+      bottom: calc(100% + 5px);
+      left: 50%;
+      transform: translateX(-50%);
+      background: #1a1a3e;
+      border: 1px solid #5b3fa0;
+      color: #e2e8f0;
+      font-size: .625rem;
+      padding: .3rem .55rem;
+      border-radius: .3rem;
+      white-space: nowrap;
+      z-index: 200;
+      pointer-events: none;
+      font-weight: 400;
+    }
+
+    .result-banner {
+      margin-top: .45rem;
+      padding: .35rem .75rem;
+      border-radius: .4rem;
+      font-size: .8rem;
+      font-weight: 700;
+      text-align: center;
+    }
+    .result-banner.win { background: rgba(34,197,94,.15); color: var(--green); }
+    .result-banner.lose { background: rgba(239,68,68,.15); color: var(--red); }
+    .result-banner.draw { background: rgba(96,165,250,.15); color: var(--blue); }
+
+    /* ──────────── ACTION PANEL ──────────── */
+    .action-panel {
+      padding: .65rem 1.25rem;
+      background: #0d1828;
+      border-top: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: .75rem;
+      flex-wrap: wrap;
+    }
+    .action-info { flex: 1; font-size: .85rem; color: var(--muted2); }
+    .action-info strong { color: var(--text); }
+    .btn-hit {
+      padding: .55rem 1.35rem;
+      background: var(--green);
+      color: #000;
+      border: none;
+      border-radius: .4rem;
+      font-weight: 800;
+      font-size: .875rem;
+      cursor: pointer;
+      transition: opacity .15s;
+    }
+    .btn-hit:hover { opacity: .88; }
+    .btn-stand {
+      padding: .55rem 1.35rem;
+      background: var(--red);
+      color: #fff;
+      border: none;
+      border-radius: .4rem;
+      font-weight: 800;
+      font-size: .875rem;
+      cursor: pointer;
+      transition: opacity .15s;
+    }
+    .btn-stand:hover { opacity: .88; }
+    .btn-next {
+      padding: .55rem 1.35rem;
+      background: var(--accent);
+      color: #000;
+      border: none;
+      border-radius: .4rem;
+      font-weight: 800;
+      font-size: .875rem;
+      cursor: pointer;
+    }
+    .btn-secondary {
+      padding: .55rem 1.35rem;
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--muted2);
+      border-radius: .4rem;
+      cursor: pointer;
+      font-size: .875rem;
+    }
+
+    /* ──────────── MODAL ──────────── */
+    .modal-overlay {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,.72);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 999;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal-box {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: .9rem;
+      padding: 1.5rem;
+      max-width: 380px;
+      width: 92%;
+    }
+    .modal-title { font-size: 1.1rem; color: var(--accent); font-weight: 800; margin-bottom: .4rem; }
+    .modal-desc { font-size: .8rem; color: var(--muted2); margin-bottom: 1rem; }
+    .modal-options { display: flex; flex-direction: column; gap: .4rem; }
+    .modal-opt {
+      padding: .7rem;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: .4rem;
+      cursor: pointer;
+      text-align: left;
+      font-size: .85rem;
+      transition: all .15s;
+    }
+    .modal-opt:hover { border-color: var(--accent); background: rgba(245,158,11,.07); }
+    .modal-cancel { margin-top: .75rem; width: 100%; }
+
+    @media (max-width: 580px) {
+      .log-col { display: none; }
+      .g-body { padding: .5rem; }
+      .title { font-size: 2.5rem; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ══════════════════ SETUP SCREEN ══════════════════ -->
+<div id="setup-screen">
+  <div class="title">21</div>
+  <div class="subtitle">Trump Card Blackjack • No stakes, all strategy</div>
+
+  <div class="setup-box">
+    <div>
+      <div class="field-label">Game Mode</div>
+      <div class="mode-row">
+        <button class="mode-btn active" id="btn-vsDealer" onclick="setMode('vsDealer')">
+          👑 vs Dealer
+        </button>
+        <button class="mode-btn" id="btn-vsPlayers" onclick="setMode('vsPlayers')">
+          ⚔️ vs Players
+        </button>
+      </div>
+    </div>
+
+    <div>
+      <div class="field-label">Players</div>
+      <div class="count-row">
+        <button class="cnt-btn" onclick="adjCount(-1)">−</button>
+        <span class="cnt-num" id="cnt-num">2</span>
+        <button class="cnt-btn" onclick="adjCount(+1)">+</button>
+        <span class="cnt-hint" id="cnt-hint">(1–4 vs dealer)</span>
+      </div>
+    </div>
+
+    <div>
+      <div class="field-label">Names</div>
+      <div class="name-inputs" id="name-inputs"></div>
+    </div>
+
+    <button class="deal-btn" onclick="startGame()">Deal Cards ▶</button>
+  </div>
+
+  <p class="trump-hint">
+    Each player gets <strong style="color:var(--text)">2 trump cards</strong> per round — play them on your turn to bend the rules.<br>
+    Hover a trump card in-game to see what it does.
+  </p>
+</div>
+
+<!-- ══════════════════ GAME SCREEN ══════════════════ -->
+<div id="game-screen">
+  <div class="g-header">
+    <span class="g-title">21</span>
+    <div class="target-chip">Target: <span id="hdr-target">21</span></div>
+    <button class="menu-btn" onclick="goMenu()">↩ Menu</button>
+  </div>
+
+  <div class="scores-bar" id="scores-bar">
+    <span class="round-tag">Round <span id="hdr-round">1</span></span>
+  </div>
+
+  <div class="g-body">
+    <div class="players-col" id="players-col"></div>
+    <div class="log-col">
+      <div class="log-title">Activity</div>
+      <div id="log-feed"></div>
+    </div>
+  </div>
+
+  <div class="action-panel" id="action-panel"></div>
+</div>
+
+<!-- ══════════════════ TARGET MODAL ══════════════════ -->
+<div class="modal-overlay" id="target-modal">
+  <div class="modal-box">
+    <div class="modal-title" id="modal-title">Choose a target</div>
+    <div class="modal-desc" id="modal-desc"></div>
+    <div class="modal-options" id="modal-opts"></div>
+    <button class="btn-secondary modal-cancel" onclick="closeModal()">Cancel</button>
+  </div>
+</div>
+
+<script>
+/* ──────────────────────────────────────────────────────
+   TRUMP CARD DEFINITIONS
+────────────────────────────────────────────────────── */
+const TRUMPS = [
+  { id:'2card',      name:'2-Card',      emoji:'2️⃣', type:'self',     desc:'Add a 2 to your hand' },
+  { id:'3card',      name:'3-Card',      emoji:'3️⃣', type:'self',     desc:'Add a 3 to your hand' },
+  { id:'4card',      name:'4-Card',      emoji:'4️⃣', type:'self',     desc:'Add a 4 to your hand' },
+  { id:'5card',      name:'5-Card',      emoji:'5️⃣', type:'self',     desc:'Add a 5 to your hand' },
+  { id:'6card',      name:'6-Card',      emoji:'6️⃣', type:'self',     desc:'Add a 6 to your hand' },
+  { id:'7card',      name:'7-Card',      emoji:'7️⃣', type:'self',     desc:'Add a 7 to your hand' },
+  { id:'goFor17',    name:'Go For 17',   emoji:'🎯', type:'global',   desc:'Change target to 17 for everyone' },
+  { id:'goFor24',    name:'Go For 24',   emoji:'🎯', type:'global',   desc:'Change target to 24 for everyone' },
+  { id:'goFor27',    name:'Go For 27',   emoji:'🎯', type:'global',   desc:'Change target to 27 for everyone' },
+  { id:'hush',       name:'Hush',        emoji:'🤫', type:'self',     desc:'Draw a card face-down (hidden from others)' },
+  { id:'perfect',    name:'Perfect',     emoji:'✨', type:'self',     desc:'Drop cards until your score hits the target' },
+  { id:'remove',     name:'Remove',      emoji:'✂️', type:'targeted', desc:"Remove one opponent's last drawn card" },
+  { id:'exchange',   name:'Exchange',    emoji:'🔄', type:'targeted', desc:"Swap your last card with an opponent's last card" },
+  { id:'disservice', name:'Disservice',  emoji:'😈', type:'targeted', desc:'Force an opponent to draw a card' },
+  { id:'destroy',    name:'Destroy',     emoji:'💥', type:'targeted', desc:"Destroy the last trump an opponent played" },
+  { id:'bless',      name:'Bless',       emoji:'🙏', type:'self',     desc:'Survive one bust this round (auto-saves you)' },
+  { id:'shield',     name:'Shield',      emoji:'🛡️', type:'self',     desc:'Block the next targeted trump used against you' },
+];
+
+/* ──────────────────────────────────────────────────────
+   CARD DECK HELPERS
+────────────────────────────────────────────────────── */
+const SUITS  = ['♠','♥','♦','♣'];
+const RED_S  = new Set(['♥','♦']);
+const VALS   = ['A','2','3','4','5','6','7','8','9','10','J','Q','K'];
+
+function makeDeck() {
+  const d = [];
+  for (const s of SUITS) for (const v of VALS) d.push({suit:s,value:v,hidden:false,magic:false});
+  return d;
+}
+function shuffle(arr) {
+  for (let i = arr.length-1; i>0; i--) {
+    const j = Math.floor(Math.random()*(i+1));
+    [arr[i],arr[j]] = [arr[j],arr[i]];
+  }
+  return arr;
+}
+function magicCard(numericVal) {
+  return { suit:'✨', value:String(numericVal), hidden:false, magic:true, _numVal:numericVal };
+}
+function randomSuit() { return SUITS[Math.floor(Math.random()*4)]; }
+
+function cardNumericVal(card) {
+  if (card.magic) return card._numVal;
+  if (card.value === 'A')             return 11;
+  if (['J','Q','K'].includes(card.value)) return 10;
+  return parseInt(card.value);
+}
+
+function calcScore(hand) {
+  let score = 0, aces = 0;
+  for (const c of hand) {
+    if (c.hidden) continue;
+    if (c.magic) { score += c._numVal; continue; }
+    if (c.value === 'A') { aces++; score += 11; }
+    else if (['J','Q','K'].includes(c.value)) score += 10;
+    else score += parseInt(c.value);
+  }
+  while (score > G.target && aces > 0) { score -= 10; aces--; }
+  return score;
+}
+
+/* ──────────────────────────────────────────────────────
+   GAME STATE
+────────────────────────────────────────────────────── */
+let G = {};
+let deck = [];
+
+function newPlayer(id, name) {
+  return { id, name, hand:[], trumps:[], stood:false, busted:false,
+           bless:false, shield:false, lastTrump:null, result:null };
+}
+
+/* ──────────────────────────────────────────────────────
+   SETUP UI
+────────────────────────────────────────────────────── */
+let cfg = { mode:'vsDealer', count:2 };
+
+function setMode(m) {
+  cfg.mode = m;
+  document.getElementById('btn-vsDealer').classList.toggle('active', m==='vsDealer');
+  document.getElementById('btn-vsPlayers').classList.toggle('active', m==='vsPlayers');
+  const min = m==='vsPlayers' ? 2 : 1;
+  cfg.count = Math.max(min, Math.min(4, cfg.count));
+  document.getElementById('cnt-hint').textContent = m==='vsDealer' ? '(1–4 vs dealer)' : '(2–4 players)';
+  buildNameInputs();
+}
+function adjCount(d) {
+  const min = cfg.mode==='vsPlayers' ? 2 : 1;
+  cfg.count = Math.max(min, Math.min(4, cfg.count+d));
+  buildNameInputs();
+}
+function buildNameInputs() {
+  document.getElementById('cnt-num').textContent = cfg.count;
+  const c = document.getElementById('name-inputs');
+  c.innerHTML = '';
+  for (let i=0; i<cfg.count; i++) {
+    const old = document.getElementById(`pname-${i}`);
+    const v = old ? old.value : `Player ${i+1}`;
+    const inp = document.createElement('input');
+    inp.className = 'name-input'; inp.type='text';
+    inp.id = `pname-${i}`; inp.placeholder = `Player ${i+1}`; inp.value = v;
+    c.appendChild(inp);
+  }
+}
+
+/* ──────────────────────────────────────────────────────
+   GAME INIT
+────────────────────────────────────────────────────── */
+function startGame() {
+  const names = [];
+  for (let i=0; i<cfg.count; i++) {
+    const el = document.getElementById(`pname-${i}`);
+    names.push((el && el.value.trim()) || `Player ${i+1}`);
+  }
+  G = {
+    mode:   cfg.mode,
+    target: 21,
+    round:  1,
+    phase:  'playing',       // 'playing' | 'dealerTurn' | 'roundOver'
+    curIdx: 0,
+    players: names.map((n,i) => newPlayer(i, n)),
+    dealer:  cfg.mode==='vsDealer' ? newPlayer('d','Dealer') : null,
+    scores:  Object.fromEntries(names.map((_,i) => [i, 0])),
+    log:     [],
+  };
+  document.getElementById('setup-screen').style.display = 'none';
+  document.getElementById('game-screen').style.display  = 'flex';
+  beginRound();
+}
+
+/* ──────────────────────────────────────────────────────
+   ROUND LIFECYCLE
+────────────────────────────────────────────────────── */
+function beginRound() {
+  G.phase  = 'playing';
+  G.target = 21;
+  G.curIdx = 0;
+  deck = shuffle(makeDeck());
+  G.log = [];
+
+  for (const p of G.players) {
+    Object.assign(p, { hand:[], trumps:[], stood:false, busted:false,
+                       bless:false, shield:false, lastTrump:null, result:null });
+    p.trumps = pickTrumps(2);
+  }
+  if (G.dealer) {
+    Object.assign(G.dealer, { hand:[], stood:false, busted:false, lastTrump:null, result:null });
+  }
+
+  // Deal 2 each
+  for (let r=0; r<2; r++) {
+    for (const p of G.players) p.hand.push(drawCard());
+    if (G.dealer) {
+      const c = drawCard();
+      if (r===1) c.hidden = true;
+      G.dealer.hand.push(c);
+    }
+  }
+
+  addLog(`Round ${G.round} started!`, true);
+  checkImmediateBlackjack();
+  render();
+}
+
+function drawCard(hidden=false) {
+  if (!deck.length) deck = shuffle(makeDeck());
+  return {...deck.pop(), hidden};
+}
+function pickTrumps(n) {
+  return shuffle([...TRUMPS]).slice(0,n).map(t => ({...t}));
+}
+
+function checkImmediateBlackjack() {
+  for (const p of G.players) {
+    if (!p.stood && !p.busted && calcScore(p.hand)===21 && p.hand.length===2) {
+      p.stood = true;
+      addLog(`${p.name} has Blackjack! 🃏`, true);
+    }
+  }
+}
+
+/* ──────────────────────────────────────────────────────
+   PLAYER ACTIONS
+────────────────────────────────────────────────────── */
+function doHit() {
+  const p = G.players[G.curIdx];
+  if (!p || p.stood || p.busted) return;
+  const c = drawCard();
+  p.hand.push(c);
+  const sc = calcScore(p.hand);
+  addLog(`${p.name} hits → ${c.value}${c.suit} (${sc})`);
+  if (sc > G.target) {
+    handleBust(p);
+  } else if (sc === G.target) {
+    addLog(`${p.name} hits exactly ${G.target}! ✨`);
+    p.stood = true;
+    advanceTurn();
+  } else {
+    render();
+  }
+}
+
+function doStand() {
+  const p = G.players[G.curIdx];
+  if (!p || p.stood || p.busted) return;
+  addLog(`${p.name} stands at ${calcScore(p.hand)}`);
+  p.stood = true;
+  advanceTurn();
+}
+
+function handleBust(p) {
+  if (p.bless) {
+    p.bless = false;
+    addLog(`${p.name} busted but Bless saves them! 🙏`);
+    render();
+    return;
+  }
+  p.busted = true;
+  addLog(`${p.name} busted! 💥`);
+  advanceTurn();
+}
+
+function advanceTurn() {
+  let next = G.curIdx + 1;
+  while (next < G.players.length && (G.players[next].stood || G.players[next].busted)) next++;
+
+  if (next >= G.players.length) {
+    // All players done
+    if (G.mode === 'vsDealer') {
+      runDealer();
+    } else {
+      resolveRound();
+    }
+  } else {
+    G.curIdx = next;
+    // Auto-stand on blackjack
+    const np = G.players[G.curIdx];
+    if (!np.stood && calcScore(np.hand)===21) {
+      np.stood = true;
+      addLog(`${np.name} has Blackjack! 🃏`, true);
+      advanceTurn();
+      return;
+    }
+    render();
+  }
+}
+
+/* ──────────────────────────────────────────────────────
+   DEALER TURN
+────────────────────────────────────────────────────── */
+function runDealer() {
+  G.phase = 'dealerTurn';
+  G.curIdx = -1;
+  for (const c of G.dealer.hand) c.hidden = false;
+  addLog(`Dealer reveals: ${calcScore(G.dealer.hand)}`, true);
+
+  if (G.players.every(p => p.busted)) {
+    addLog('All players busted — dealer wins by default');
+    resolveRound(); return;
+  }
+
+  render();
+  setTimeout(dealerStep, 700);
+}
+function dealerStep() {
+  const sc = calcScore(G.dealer.hand);
+  if (sc <= 16) {
+    const c = drawCard();
+    G.dealer.hand.push(c);
+    const nsc = calcScore(G.dealer.hand);
+    addLog(`Dealer hits → ${c.value}${c.suit} (${nsc})`);
+    if (nsc > G.target) {
+      G.dealer.busted = true;
+      addLog(`Dealer busts! 💥`);
+      resolveRound();
+    } else {
+      render();
+      setTimeout(dealerStep, 700);
+    }
+  } else {
+    addLog(`Dealer stands at ${sc}`);
+    G.dealer.stood = true;
+    resolveRound();
+  }
+}
+
+/* ──────────────────────────────────────────────────────
+   ROUND RESOLUTION
+────────────────────────────────────────────────────── */
+function resolveRound() {
+  G.phase = 'roundOver';
+  if (G.mode === 'vsDealer') {
+    const ds = calcScore(G.dealer.hand);
+    for (const p of G.players) {
+      const ps = calcScore(p.hand);
+      if (p.busted)                   p.result = 'lose';
+      else if (G.dealer.busted)       { p.result = 'win'; G.scores[p.id]++; }
+      else if (ps > ds)               { p.result = 'win'; G.scores[p.id]++; }
+      else if (ps === ds)             p.result = 'draw';
+      else                            p.result = 'lose';
+      addLog(`${p.name}: ${resultEmoji(p.result)} (${ps})`, p.result==='win');
+    }
+  } else {
+    const active = G.players.filter(p => !p.busted);
+    if (!active.length) {
+      G.players.forEach(p => { p.result = 'lose'; });
+      addLog('Everyone busted — no winner!');
+    } else {
+      const best = Math.max(...active.map(p => calcScore(p.hand)));
+      const winners = active.filter(p => calcScore(p.hand)===best);
+      for (const p of G.players) {
+        if (p.busted) { p.result='lose'; }
+        else if (winners.includes(p)) {
+          p.result = winners.length===1 ? 'win' : 'draw';
+          if (winners.length===1) G.scores[p.id]++;
+        } else {
+          p.result = 'lose';
+        }
+        addLog(`${p.name}: ${resultEmoji(p.result)} (${calcScore(p.hand)})`, p.result==='win');
+      }
+    }
+  }
+  render();
+}
+
+function resultEmoji(r) {
+  return r==='win' ? '🏆 Win' : r==='draw' ? '🤝 Draw' : '❌ Lose';
+}
+
+/* ──────────────────────────────────────────────────────
+   TRUMP CARD LOGIC
+────────────────────────────────────────────────────── */
+function onPlayTrump(pid, tidx) {
+  if (G.phase !== 'playing' || G.curIdx !== pid) return;
+  const p = G.players[pid];
+  const t = p.trumps[tidx];
+  if (!t) return;
+
+  if (t.type === 'targeted') {
+    const opps = getOpponents(pid);
+    if (!opps.length) return;
+    showModal(t, opps, (opp) => {
+      p.trumps.splice(tidx, 1);
+      if (opp.shield) {
+        opp.shield = false;
+        addLog(`${opp.name}'s Shield blocks ${t.name}! 🛡️`);
+      } else {
+        applyTrump(p, opp, t);
+      }
+      render();
+    });
+  } else {
+    p.trumps.splice(tidx, 1);
+    applyTrump(p, null, t);
+    render();
+  }
+}
+
+function getOpponents(pid) {
+  const opps = G.players.filter(p => p.id !== pid && !p.busted);
+  if (G.dealer && !G.dealer.busted) opps.push(G.dealer);
+  return opps;
+}
+
+function applyTrump(player, target, t) {
+  addLog(`${player.name} plays ${t.emoji} ${t.name}`, true);
+  player.lastTrump = t;
+
+  switch (t.id) {
+    case '2card': case '3card': case '4card':
+    case '5card': case '6card': case '7card': {
+      const n = parseInt(t.id);
+      player.hand.push({ suit:randomSuit(), value:String(n), hidden:false, magic:false });
+      const sc = calcScore(player.hand);
+      if (sc > G.target) handleBust(player);
+      break;
+    }
+    case 'goFor17': case 'goFor24': case 'goFor27': {
+      const prev = G.target;
+      G.target = parseInt(t.id.replace('goFor',''));
+      addLog(`Target score changed from ${prev} → ${G.target} 🎯`);
+      // Immediately check if anyone is now busted
+      for (const p of G.players) {
+        if (!p.busted && !p.stood && calcScore(p.hand) > G.target) {
+          if (p.bless) { p.bless=false; addLog(`${p.name} busted but Bless saves them! 🙏`); }
+          else { p.busted=true; addLog(`${p.name} is now busted! 💥`); }
+        }
+      }
+      break;
+    }
+    case 'hush': {
+      const c = drawCard(true);
+      player.hand.push(c);
+      addLog(`${player.name} draws a hidden card 🤫`);
+      break;
+    }
+    case 'perfect': {
+      // Drop cards until score hits target, then optionally top up
+      while (calcScore(player.hand) > G.target && player.hand.length > 2) {
+        const removed = player.hand.pop();
+        addLog(`${player.name} drops ${removed.magic ? removed.value : removed.value+removed.suit}`);
+      }
+      const cur = calcScore(player.hand);
+      if (cur < G.target) {
+        const gap = G.target - cur;
+        if (gap <= 11) {
+          player.hand.push(magicCard(gap));
+          addLog(`${player.name}'s score set to ${G.target} ✨`);
+        }
+      } else if (cur === G.target) {
+        addLog(`${player.name} is already at ${G.target} ✨`);
+      }
+      player.stood = true;
+      setTimeout(() => advanceTurn(), 150);
+      break;
+    }
+    case 'remove': {
+      if (target && target.hand.length > 0) {
+        const rem = target.hand.pop();
+        addLog(`Removed ${target.name}'s last card (${rem.hidden ? '?' : rem.value+rem.suit})`);
+        // Un-bust if now under target
+        if (target.busted && calcScore(target.hand) <= G.target) {
+          target.busted = false;
+          addLog(`${target.name} is no longer busted!`);
+        }
+      }
+      break;
+    }
+    case 'exchange': {
+      if (target && player.hand.length && target.hand.length) {
+        const mine  = player.hand.pop();
+        const their = target.hand.pop();
+        player.hand.push(their);
+        target.hand.push(mine);
+        addLog(`${player.name} swapped cards with ${target.name} 🔄`);
+        // Recheck busts
+        if (calcScore(player.hand) > G.target && !player.busted) handleBust(player);
+        if (target.id !== 'd' && calcScore(target.hand) > G.target && !target.busted) handleBust(target);
+      }
+      break;
+    }
+    case 'disservice': {
+      if (target) {
+        const c = drawCard();
+        target.hand.push(c);
+        addLog(`${target.name} is forced to draw ${c.value}${c.suit}! 😈`);
+        if (target.id !== 'd' && calcScore(target.hand) > G.target && !target.busted) handleBust(target);
+      }
+      break;
+    }
+    case 'destroy': {
+      if (target && target.lastTrump) {
+        addLog(`${player.name} destroys ${target.name}'s ${target.lastTrump.name}! 💥`);
+        target.lastTrump = null;
+      } else {
+        addLog(`No trump to destroy!`);
+      }
+      break;
+    }
+    case 'bless': {
+      player.bless = true;
+      addLog(`${player.name} is blessed — survives one bust! 🙏`);
+      break;
+    }
+    case 'shield': {
+      player.shield = true;
+      addLog(`${player.name} raises their Shield! 🛡️`);
+      break;
+    }
+  }
+}
+
+/* ──────────────────────────────────────────────────────
+   MODAL
+────────────────────────────────────────────────────── */
+function showModal(trump, targets, cb) {
+  document.getElementById('modal-title').textContent = `${trump.emoji} ${trump.name}`;
+  document.getElementById('modal-desc').textContent  = trump.desc;
+  const opts = document.getElementById('modal-opts');
+  opts.innerHTML = '';
+  for (const t of targets) {
+    const sc   = t.id==='d' ? '?' : calcScore(t.hand);
+    const shld = t.shield ? ' 🛡️' : '';
+    const btn  = document.createElement('button');
+    btn.className = 'modal-opt';
+    btn.textContent = `${t.name}${shld} — score: ${sc}`;
+    btn.onclick = () => { closeModal(); cb(t); };
+    opts.appendChild(btn);
+  }
+  document.getElementById('target-modal').classList.add('open');
+}
+function closeModal() {
+  document.getElementById('target-modal').classList.remove('open');
+}
+
+/* ──────────────────────────────────────────────────────
+   RENDER
+────────────────────────────────────────────────────── */
+function render() {
+  document.getElementById('hdr-target').textContent = G.target;
+  document.getElementById('hdr-round').textContent  = G.round;
+  renderScores();
+  renderPlayers();
+  renderActionPanel();
+}
+
+function renderScores() {
+  const bar = document.getElementById('scores-bar');
+  bar.innerHTML = `<span class="round-tag">Round <span id="hdr-round">${G.round}</span></span>`;
+  for (const p of G.players) {
+    const el = document.createElement('div');
+    el.className = 'score-pip';
+    el.innerHTML = `<span class="score-pip-name">${esc(p.name)}</span><span class="score-pip-wins">${G.scores[p.id]}</span>`;
+    bar.appendChild(el);
+  }
+}
+
+function renderPlayers() {
+  const col = document.getElementById('players-col');
+  col.innerHTML = '';
+  if (G.dealer) col.appendChild(buildPanel(G.dealer, true));
+  for (const p of G.players) col.appendChild(buildPanel(p, false));
+}
+
+function buildPanel(entity, isDealer) {
+  const isActive = !isDealer && G.phase==='playing' && G.players[G.curIdx]?.id===entity.id;
+  const sc = isDealer
+    ? calcScore(entity.hand.filter(c=>!c.hidden))
+    : calcScore(entity.hand);
+
+  // Classes
+  let cls = 'player-panel';
+  if (isDealer) cls += ' dealer-panel';
+  if (isActive) cls += ' is-active';
+  if (entity.busted) cls += ' is-busted';
+  else if (entity.stood && G.phase!=='roundOver') cls += ' is-stood';
+  if (G.phase==='roundOver' && entity.result==='win') cls += ' is-winner';
+
+  // Badge
+  let badge = '';
+  if (G.phase==='roundOver' && entity.result) {
+    badge = `<span class="badge badge-${entity.result}">${entity.result}</span>`;
+  } else if (entity.busted) {
+    badge = `<span class="badge badge-bust">Bust!</span>`;
+  } else if (isActive) {
+    badge = `<span class="badge badge-turn">Your Turn</span>`;
+  } else if (entity.stood) {
+    badge = `<span class="badge badge-stood">Stood</span>`;
+  }
+
+  // Pips
+  let pips = '';
+  if (!isDealer && entity.bless)  pips += '<span class="pip-bless">BLESS</span>';
+  if (!isDealer && entity.shield) pips += '<span class="pip-shield">SHIELD</span>';
+
+  // Cards
+  let cardsHtml = '';
+  for (const c of entity.hand) {
+    if (c.hidden) {
+      cardsHtml += `<div class="card c-facedown"></div>`;
+    } else {
+      const cls2 = c.magic ? 'c-magic' : RED_S.has(c.suit) ? 'c-red' : 'c-black';
+      cardsHtml += `<div class="card ${cls2}">
+        <div class="card-corner">${esc(c.value)}<br>${esc(c.suit)}</div>
+        <div class="card-val">${esc(c.value)}</div>
+        <div class="card-suit">${esc(c.suit)}</div>
+      </div>`;
+    }
+  }
+
+  // Trump buttons (only active players during playing phase)
+  let trumpHtml = '';
+  if (!isDealer && entity.trumps.length && G.phase==='playing') {
+    trumpHtml = '<div class="trumps-row">';
+    entity.trumps.forEach((t, idx) => {
+      const disabled = !isActive ? 'disabled' : '';
+      trumpHtml += `<button class="trump-btn" data-tip="${esc(t.desc)}"
+        ${disabled} onclick="onPlayTrump(${entity.id},${idx})"
+      >${t.emoji} ${t.name}</button>`;
+    });
+    trumpHtml += '</div>';
+  }
+
+  // Result
+  let resultHtml = '';
+  if (G.phase==='roundOver' && entity.result) {
+    const labels = {win:'🏆 Winner!', lose:'❌ Eliminated', draw:'🤝 Draw'};
+    resultHtml = `<div class="result-banner ${entity.result}">${labels[entity.result]}</div>`;
+  }
+
+  const dispScore = (isDealer && entity.hand.some(c=>c.hidden)) ? `${sc}+?` : sc;
+
+  const div = document.createElement('div');
+  div.className = cls;
+  div.innerHTML = `
+    <div class="pp-header">
+      <div class="pp-name">${isDealer ? '🃏 ' : ''}${esc(entity.name)} ${pips}</div>
+      <div class="pp-right">${badge}<span class="pp-score">${dispScore}</span></div>
+    </div>
+    <div class="cards-row">${cardsHtml}</div>
+    ${trumpHtml}
+    ${resultHtml}
+  `;
+  return div;
+}
+
+function renderActionPanel() {
+  const ap = document.getElementById('action-panel');
+  if (G.phase === 'roundOver') {
+    ap.innerHTML = `
+      <span class="action-info">Round ${G.round} complete!</span>
+      <button class="btn-next" onclick="nextRound()">Next Round ▶</button>
+      <button class="btn-secondary" onclick="goMenu()">↩ Menu</button>
+    `;
+    return;
+  }
+  if (G.phase === 'dealerTurn') {
+    ap.innerHTML = `<span class="action-info" style="color:var(--muted2)">Dealer is playing...</span>`;
+    return;
+  }
+  const p = G.players[G.curIdx];
+  if (!p) { ap.innerHTML = ''; return; }
+  const sc = calcScore(p.hand);
+  ap.innerHTML = `
+    <span class="action-info"><strong>${esc(p.name)}</strong>'s turn — score: ${sc}</span>
+    <button class="btn-hit"   onclick="doHit()">Hit</button>
+    <button class="btn-stand" onclick="doStand()">Stand</button>
+  `;
+}
+
+/* ──────────────────────────────────────────────────────
+   LOG
+────────────────────────────────────────────────────── */
+function addLog(msg, hi=false) {
+  G.log.unshift({msg,hi});
+  if (G.log.length > 60) G.log.length = 60;
+  const feed = document.getElementById('log-feed');
+  if (!feed) return;
+  feed.innerHTML = G.log.slice(0,25).map(l =>
+    `<div class="log-line${l.hi?' hi':''}">${esc(l.msg)}</div>`
+  ).join('');
+}
+
+/* ──────────────────────────────────────────────────────
+   NAVIGATION
+────────────────────────────────────────────────────── */
+function nextRound() {
+  G.round++;
+  beginRound();
+}
+function goMenu() {
+  document.getElementById('game-screen').style.display  = 'none';
+  document.getElementById('setup-screen').style.display = 'flex';
+}
+
+/* ──────────────────────────────────────────────────────
+   UTILS
+────────────────────────────────────────────────────── */
+function esc(s) {
+  return String(s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+/* ──────────────────────────────────────────────────────
+   BOOT
+────────────────────────────────────────────────────── */
+buildNameInputs();
+</script>
+</body>
+</html>
