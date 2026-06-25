@@ -4,6 +4,8 @@
   "description": "",
   "main": "index.js",
   "scripts": {
+    "build": "esbuild src/pages-entry.ts --bundle --format=esm --outfile=public/_worker.js",
+    "deploy": "npm run build && wrangler pages deploy ./public --project-name twentyone",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {
@@ -20,6 +22,7 @@
   "homepage": "https://github.com/xuishimm/blackjack21#readme",
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20260625.1",
+    "esbuild": "^0.28.1",
     "typescript": "^6.0.3",
     "wrangler": "^4.105.0"
   }
